@@ -1,18 +1,19 @@
 import os
 import re
+import statistics
 
 import sublime
 import sublime_api
 import sublime_plugin
 
 
-PACKAGES_FILE_REGEX = r'^Packages/(..[^:]*):([0-9]+):?([0-9]+)?:? (.*)$'
+PACKAGES_FILE_REGEX = r'^Packages/(..[^:]*):?([0-9]+)?:?([0-9]+)?'
 
 
 class RunSyntaxTestsCommand(sublime_plugin.WindowCommand):
     def run(self,
             find_all=False,
-            syntax='Plain text.tmLanguage',
+            syntax='Packages/Default/Syntax Test Results.sublime-syntax',
             **kwargs):
 
         if not hasattr(self, 'output_view'):
@@ -118,14 +119,18 @@ class ProfileSyntaxDefinitionCommand(sublime_plugin.WindowCommand):
         source = view.substr(sublime.Region(0, view.size()))
         syntax = view.settings().get('syntax')
 
-        total = 0.0
-        for _ in range(0, 10):
-            total += sublime_api.profile_syntax_definition(source, syntax)
-        avg = total / 10.0
+        num_runs = 10
 
-        output = 'Syntax "{}" took an average of {:,.1f}ms over 10 runs\n' \
-            '[Finished]'
-        append(self.output_view, output.format(syntax, avg * 1000.0))
+        data = [sublime_api.profile_syntax_definition(source, syntax) for _ in range(num_runs)]
+
+        mean_ms = statistics.mean(data) * 1000.0
+        stdev_ms = statistics.stdev(data) * 1000.0
+
+        append(
+            self.output_view,
+            f'Syntax "{syntax}" took an average of {mean_ms:,.1f}ms ±{stdev_ms:,.1f}ms over {num_runs} runs\n'
+            f'    minimum: {min(data) * 1000.0:,.1f}ms, maximum: {max(data) * 1000.0:,.1f}ms\n'
+            '[Finished]')
 
 
 class SyntaxDefinitionCompatibilityCommand(sublime_plugin.WindowCommand):
@@ -276,10 +281,15 @@ def package_relative_path(view):
     packages_path = sublime.packages_path()
     data_dir = os.path.dirname(packages_path) + os.sep
 
+    alt_data_dir = os.path.dirname(os.path.dirname(__file__)) + os.sep
+
     path = view.file_name()
     file_name = os.path.basename(path)
     if path.startswith(data_dir):
         relative_path = os_to_resource_path('Packages' + path[len(packages_path):])
+
+    elif path.startswith(alt_data_dir):
+        relative_path = os_to_resource_path('Packages' + path[len(alt_data_dir) - 1:])
 
     else:
         # Detect symlinked files that are opened from outside the Packages dir

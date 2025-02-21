@@ -333,6 +333,14 @@
             "scope": "message.error",
             "foreground": "var(red)"
         },
+        {
+            "scope": "message.warning",
+            "foreground": "var(orange2)"
+        },
+        {
+            "scope": "message.info",
+            "foreground": "var(blue)"
+        },
 
         {
             "scope": "diff.deleted",
